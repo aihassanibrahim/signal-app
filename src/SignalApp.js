@@ -368,6 +368,39 @@ export default function SignalApp() {
     }
   };
 
+  // Reset everything and start fresh
+  const resetApp = async () => {
+    try {
+      console.log('🔄 Resetting app...');
+      setDebugInfo('Resetting app...');
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear all localStorage
+      localStorage.clear();
+      
+      // Reset all state
+      setUser(null);
+      setEmail('');
+      setShowEmailInput(false);
+      setIsSyncing(false);
+      setDebugInfo('');
+      
+      // Load default data
+      loadLocalData();
+      
+      // Show email input again
+      setShowEmailInput(true);
+      
+      console.log('✅ App reset complete');
+      setDebugInfo('App reset complete - please sign in again');
+    } catch (error) {
+      console.error('❌ Error resetting app:', error);
+      setDebugInfo(`Reset error: ${error.message}`);
+    }
+  };
+
   const completeDailyReset = () => {
     localStorage.setItem('lastDailyReset', new Date().toDateString());
     setShowDailyReset(false);
@@ -413,6 +446,8 @@ export default function SignalApp() {
         if (deleteError) {
           console.error('❌ Error deleting tasks:', deleteError);
           setDebugInfo(`Delete error: ${deleteError.message}`);
+          // Continue anyway - localStorage is already saved
+          return;
         }
 
         // Insert new tasks (don't include id - let Supabase generate it)
@@ -434,14 +469,14 @@ export default function SignalApp() {
 
         if (insertError) {
           console.error('❌ Error saving to Supabase:', insertError);
-          setDebugInfo(`Save error: ${insertError.message}`);
+          setDebugInfo(`Save error: ${insertError.message} - but saved to localStorage`);
         } else {
           console.log('✅ Saved signal tasks to Supabase:', insertData);
           setDebugInfo('Saved to Supabase');
         }
       } catch (error) {
         console.error('❌ Error saving to Supabase:', error);
-        setDebugInfo(`Save error: ${error.message}`);
+        setDebugInfo(`Save error: ${error.message} - but saved to localStorage`);
       }
     } else {
       console.log('📱 User not signed in, only saved to localStorage');
@@ -730,6 +765,12 @@ export default function SignalApp() {
                     className="text-xs text-blue-500 hover:text-blue-700 active:text-blue-700 underline transition-colors touch-manipulation"
                   >
                     Test
+                  </button>
+                  <button
+                    onClick={resetApp}
+                    className="text-xs text-red-500 hover:text-red-700 active:text-red-700 underline transition-colors touch-manipulation"
+                  >
+                    Reset
                   </button>
                   <button
                     onClick={signOut}
