@@ -1,23 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = 'https://umkvdwcolybhvhmxcmpp.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3Zkd2NvbHliaHZobXhjbXBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyOTk5MzUsImV4cCI6MjA2OTg3NTkzNX0.A8bc48ZcDSFZLS5HHbrGU3ercOkUwsRhQWWOjVuL6sQ';
-
-// Initialize Supabase
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function SignalApp() {
-  const [signalTasks, setSignalTasks] = useState([
-    { id: 1, text: "Study for calculus midterm", completed: false, timeSpent: 10800 },
-    { id: 2, text: "Finish history essay draft", completed: false, timeSpent: 2700 },
-    { id: 3, text: "Prepare for job interview", completed: true, timeSpent: 3600 }
-  ]);
-  
-  const [noiseTasks, setNoiseTasks] = useState([
-    "Check social media", "Organize desk", "Reply to group chat", "Watch YouTube videos", "Do laundry"
-  ]);
-
+  const [signalTasks, setSignalTasks] = useState([]);
+  const [noiseTasks, setNoiseTasks] = useState([]);
   const [signalInput, setSignalInput] = useState('');
   const [showNoise, setShowNoise] = useState(false);
   const [showDailyReset, setShowDailyReset] = useState(false);
@@ -27,14 +12,21 @@ export default function SignalApp() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState(null);
   const [isLongPressing, setIsLongPressing] = useState(false);
-  const [userId, setUserId] = useState(null);
   const [email, setEmail] = useState('');
   const [showEmailInput, setShowEmailInput] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [completingTaskId, setCompletingTaskId] = useState(null);
+  const [newTaskId, setNewTaskId] = useState(null);
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
   const signalRatio = Math.round((signalTime / totalTime) * 100);
+
+  // Initialize app - load data once
+  useEffect(() => {
+    loadData();
+    checkForModals();
+  }, []);
 
   // Timer effect
   useEffect(() => {
@@ -50,149 +42,105 @@ export default function SignalApp() {
     return () => clearInterval(interval);
   }, [isTimerRunning, focusTimer.taskId]);
 
-  // Initialize app
-  useEffect(() => {
-    initializeAuth();
-    checkDailyReset();
-  }, []);
+  const loadData = () => {
+    try {
+      // Load signal tasks
+      const savedSignalTasks = localStorage.getItem('signalTasks');
+      if (savedSignalTasks) {
+        setSignalTasks(JSON.parse(savedSignalTasks));
+      } else {
+        // Default tasks only if no saved data
+        const defaultTasks = [
+          { id: 1, text: "Study for calculus midterm", completed: false, timeSpent: 10800 },
+          { id: 2, text: "Finish history essay draft", completed: false, timeSpent: 2700 },
+          { id: 3, text: "Prepare for job interview", completed: true, timeSpent: 3600 }
+        ];
+        setSignalTasks(defaultTasks);
+        localStorage.setItem('signalTasks', JSON.stringify(defaultTasks));
+      }
 
-  // Check for saved email on app start
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('signalEmail');
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setShowEmailInput(false);
-      loadLocalData();
-    } else {
-      setShowEmailInput(true);
+      // Load noise tasks
+      const savedNoiseTasks = localStorage.getItem('noiseTasks');
+      if (savedNoiseTasks) {
+        setNoiseTasks(JSON.parse(savedNoiseTasks));
+      } else {
+        // Default noise only if no saved data
+        const defaultNoise = [
+          "Check social media", "Organize desk", "Reply to group chat", "Watch YouTube videos", "Do laundry"
+        ];
+        setNoiseTasks(defaultNoise);
+        localStorage.setItem('noiseTasks', JSON.stringify(defaultNoise));
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
     }
-  }, []);
-
-  // No need for Supabase listeners when using localStorage only
-
-  const initializeAuth = async () => {
-    // Simple initialization - just set syncing to false
-    setSyncing(false);
   };
 
-  const signInWithEmail = async (emailAddress) => {
-    try {
-      console.log('Setting email:', emailAddress);
-      
-      // Just save the email and close the popup
+  const checkForModals = () => {
+    // Check daily reset first (higher priority)
+    const lastReset = localStorage.getItem('lastDailyReset');
+    const today = new Date().toDateString();
+    
+    if (lastReset !== today) {
+      setShowDailyReset(true);
+      setInitialLoadComplete(true);
+      return; // Don't show email modal if daily reset is showing
+    }
+
+    // Check email setup only if no daily reset and no email saved
+    const savedEmail = localStorage.getItem('signalEmail');
+    const hasSkippedSync = localStorage.getItem('skippedSync') === 'true';
+    
+    if (!savedEmail && !hasSkippedSync) {
+      setShowEmailInput(true);
+    } else if (savedEmail) {
+      setEmail(savedEmail);
+    }
+    
+    setInitialLoadComplete(true);
+  };
+
+  const signInWithEmail = (emailAddress) => {
+    if (emailAddress && emailAddress.includes('@')) {
       localStorage.setItem('signalEmail', emailAddress);
       setEmail(emailAddress);
       setShowEmailInput(false);
-      setSyncing(false);
-      
-      // Load any existing data
-      loadLocalData();
-      
-    } catch (error) {
-      console.error('Error setting email:', error);
-      setShowEmailInput(false);
-      setSyncing(false);
+      // Remove skip flag if they decide to add email later
+      localStorage.removeItem('skippedSync');
     }
   };
 
-  const loadLocalData = () => {
-    try {
-      const savedSignalTasks = localStorage.getItem('signalTasks');
-      const savedNoiseTasks = localStorage.getItem('noiseTasks');
-      
-      if (savedSignalTasks) {
-        setSignalTasks(JSON.parse(savedSignalTasks));
-      }
-      if (savedNoiseTasks) {
-        setNoiseTasks(JSON.parse(savedNoiseTasks));
-      }
-    } catch (error) {
-      console.error('Error loading local data:', error);
+  const skipSync = () => {
+    localStorage.setItem('skippedSync', 'true');
+    setShowEmailInput(false);
+  };
+
+  const completeDailyReset = () => {
+    localStorage.setItem('lastDailyReset', new Date().toDateString());
+    setShowDailyReset(false);
+    
+    // After daily reset, check if we should show email modal
+    const savedEmail = localStorage.getItem('signalEmail');
+    const hasSkippedSync = localStorage.getItem('skippedSync') === 'true';
+    
+    if (!savedEmail && !hasSkippedSync) {
+      // Small delay to avoid modal flickering
+      setTimeout(() => {
+        setShowEmailInput(true);
+      }, 300);
     }
   };
 
-  const loadSupabaseData = (userEmail) => {
-    try {
-      console.log('Setting up Supabase data loading for email:', userEmail);
-      
-      // Load initial data
-      loadSignalTasks(userEmail);
-      loadNoiseTasks(userEmail);
-
-      // Set up polling for real-time updates (every 3 seconds)
-      const pollInterval = setInterval(() => {
-        loadSignalTasks(userEmail);
-        loadNoiseTasks(userEmail);
-      }, 3000);
-
-      // Return cleanup function
-      return () => {
-        console.log('Cleaning up Supabase polling');
-        clearInterval(pollInterval);
-      };
-    } catch (error) {
-      console.error('Error loading Supabase data:', error);
-      loadLocalData();
-    }
-  };
-
-  const loadSignalTasks = async (userEmail) => {
-    try {
-      const { data, error } = await supabase
-        .from('signal_tasks')
-        .select('*')
-        .eq('user_email', userEmail)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      
-      console.log('Loaded signal tasks:', data?.length || 0);
-      setSignalTasks(data || []);
-    } catch (error) {
-      console.error('Error loading signal tasks:', error);
-      loadLocalData();
-    }
-  };
-
-  const loadNoiseTasks = async (userEmail) => {
-    try {
-      const { data, error } = await supabase
-        .from('noise_tasks')
-        .select('*')
-        .eq('user_email', userEmail)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      
-      console.log('Loaded noise tasks:', data?.length || 0);
-      setNoiseTasks(data?.map(task => task.text) || []);
-    } catch (error) {
-      console.error('Error loading noise tasks:', error);
-      const savedNoiseTasks = localStorage.getItem('noiseTasks');
-      if (savedNoiseTasks) {
-        setNoiseTasks(JSON.parse(savedNoiseTasks));
-      }
-    }
-  };
-
-  const checkDailyReset = () => {
-    const lastReset = localStorage.getItem('lastDailyReset');
-    const today = new Date().toDateString();
-    if (lastReset !== today) {
-      setShowDailyReset(true);
-    }
-  };
-
-  const saveSignalTasks = async (tasks) => {
+  const saveSignalTasks = (tasks) => {
+    console.log('Saving signal tasks:', tasks.length);
     setSignalTasks(tasks);
     localStorage.setItem('signalTasks', JSON.stringify(tasks));
-    console.log('Saved signal tasks to localStorage:', tasks.length, 'tasks');
   };
 
-  const saveNoiseTasks = async (tasks) => {
+  const saveNoiseTasks = (tasks) => {
+    console.log('Saving noise tasks:', tasks.length);
     setNoiseTasks(tasks);
     localStorage.setItem('noiseTasks', JSON.stringify(tasks));
-    console.log('Saved noise tasks to localStorage:', tasks.length, 'tasks');
   };
 
   const handleAddClick = () => {
@@ -227,30 +175,40 @@ export default function SignalApp() {
   };
 
   const addSignalTask = () => {
-    if (signalInput.trim() && signalTasks.filter(t => !t.completed).length < 5) {
-      const newTask = {
-        id: Date.now(),
-        text: signalInput.trim(),
-        completed: false,
-        timeSpent: 0
-      };
-      const updatedTasks = [...signalTasks, newTask];
-      saveSignalTasks(updatedTasks);
-      setSignalInput('');
-    }
+    if (!signalInput.trim()) return;
+    
+    const activeTasks = signalTasks.filter(t => !t.completed);
+    if (activeTasks.length >= 5) return;
+
+    const newTask = {
+      id: Date.now(),
+      text: signalInput.trim(),
+      completed: false,
+      timeSpent: 0
+    };
+
+    console.log('Adding new signal task:', newTask);
+    const updatedTasks = [...signalTasks, newTask];
+    saveSignalTasks(updatedTasks);
+    setSignalInput('');
+    
+    // Add entrance animation for new task
+    setNewTaskId(newTask.id);
+    setTimeout(() => setNewTaskId(null), 500);
   };
 
   const addQuickNoise = () => {
-    if (quickNoiseInput.trim()) {
-      const updatedNoise = [...noiseTasks, quickNoiseInput.trim()];
-      saveNoiseTasks(updatedNoise);
-      setQuickNoiseInput('');
-      setShowQuickNoise(false);
-    }
+    if (!quickNoiseInput.trim()) return;
+
+    const updatedNoise = [...noiseTasks, quickNoiseInput.trim()];
+    saveNoiseTasks(updatedNoise);
+    setQuickNoiseInput('');
+    setShowQuickNoise(false);
   };
 
   const startFocusTimer = (taskId) => {
     if (focusTimer.taskId === taskId && isTimerRunning) {
+      // Stop timer
       setIsTimerRunning(false);
       const updatedTasks = signalTasks.map(task => 
         task.id === taskId 
@@ -260,6 +218,7 @@ export default function SignalApp() {
       saveSignalTasks(updatedTasks);
       setFocusTimer({ taskId: null, startTime: null, elapsed: 0 });
     } else {
+      // Start timer
       setFocusTimer({ 
         taskId, 
         startTime: Date.now(), 
@@ -270,10 +229,22 @@ export default function SignalApp() {
   };
 
   const toggleSignalTask = (id) => {
-    const updatedTasks = signalTasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    );
-    saveSignalTasks(updatedTasks);
+    // Add completing animation
+    setCompletingTaskId(id);
+    
+    // Add haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    
+    // Wait for animation then update state
+    setTimeout(() => {
+      const updatedTasks = signalTasks.map(task => 
+        task.id === id ? { ...task, completed: !task.completed } : task
+      );
+      saveSignalTasks(updatedTasks);
+      setCompletingTaskId(null);
+    }, 300);
   };
 
   const deleteSignalTask = (id) => {
@@ -281,9 +252,9 @@ export default function SignalApp() {
     saveSignalTasks(updatedTasks);
   };
 
-  const completeDailyReset = () => {
-    localStorage.setItem('lastDailyReset', new Date().toDateString());
-    setShowDailyReset(false);
+  const deleteNoiseTask = (index) => {
+    const updatedNoise = noiseTasks.filter((_, i) => i !== index);
+    saveNoiseTasks(updatedNoise);
   };
 
   const handleKeyPress = (e) => {
@@ -315,14 +286,14 @@ export default function SignalApp() {
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8">
         
         {/* Email Input Modal */}
-        {showEmailInput && (
+        {initialLoadComplete && showEmailInput && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-8 mx-4 max-w-sm w-full">
               <h2 className="text-xl font-light text-gray-800 mb-4 text-center">
                 Sync across devices
               </h2>
               <p className="text-sm text-gray-500 mb-6 text-center">
-                Enter your email to sync your tasks across all devices
+                Enter your email to enable sync (coming soon)
               </p>
               <input
                 type="email"
@@ -337,16 +308,10 @@ export default function SignalApp() {
                 disabled={!email.includes('@')}
                 className="w-full bg-black text-white py-3 rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Start Syncing
+                Save Email
               </button>
               <button
-                onClick={() => {
-                  setShowEmailInput(false);
-                  const localUserId = localStorage.getItem('signalUserId') || 'local-' + Date.now();
-                  localStorage.setItem('signalUserId', localUserId);
-                  setUserId(localUserId);
-                  loadLocalData();
-                }}
+                onClick={skipSync}
                 className="w-full mt-2 text-gray-500 py-2 text-sm hover:text-gray-700 transition-colors"
               >
                 Continue without sync
@@ -356,7 +321,7 @@ export default function SignalApp() {
         )}
 
         {/* Daily Reset Modal */}
-        {showDailyReset && (
+        {initialLoadComplete && showDailyReset && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-8 mx-4 max-w-sm w-full">
               <h2 className="text-xl font-light text-gray-800 mb-4 text-center">
@@ -377,30 +342,25 @@ export default function SignalApp() {
         
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <h1 className="text-2xl font-light text-gray-800">Today's Focus</h1>
-            {syncing && (
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            )}
-          </div>
+          <h1 className="text-2xl font-light text-gray-800 mb-2">Today's Focus</h1>
           <div className="text-sm text-gray-500">
             {signalRatio}% focused • {formatDuration(signalTime)} on signal
           </div>
           {email && (
             <div className="flex items-center justify-center gap-2 mt-2">
               <div className="text-xs text-gray-400">
-                Synced with {email}
+                Email saved: {email}
               </div>
               <button
                 onClick={() => {
-                  supabase.auth.signOut();
                   localStorage.removeItem('signalEmail');
+                  localStorage.removeItem('skippedSync');
                   setEmail('');
                   setShowEmailInput(true);
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline"
               >
-                Switch email
+                Change
               </button>
             </div>
           )}
@@ -474,21 +434,38 @@ export default function SignalApp() {
         {/* Signal Tasks */}
         <div className="space-y-3 mb-8">
           {activeSignalTasks.map((task) => (
-            <div key={task.id} className="group flex items-center gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+            <div 
+              key={task.id} 
+              className={`group flex items-center gap-4 p-3 rounded-xl transition-all duration-500 ${
+                completingTaskId === task.id 
+                  ? 'transform translate-x-8 opacity-30 scale-95 bg-green-50' 
+                  : newTaskId === task.id
+                  ? 'transform scale-105 bg-blue-50 shadow-lg'
+                  : 'hover:bg-gray-50 hover:shadow-md'
+              }`}
+            >
               <button
                 onClick={() => toggleSignalTask(task.id)}
-                className="w-6 h-6 border-2 border-gray-300 rounded-md flex items-center justify-center hover:border-gray-400 transition-colors"
+                disabled={completingTaskId === task.id}
+                className={`w-6 h-6 border-2 rounded-md flex items-center justify-center transition-all duration-300 ${
+                  completingTaskId === task.id
+                    ? 'border-green-500 bg-green-500 scale-110'
+                    : 'border-gray-300 hover:border-gray-400 hover:scale-105'
+                }`}
               >
+                {completingTaskId === task.id && (
+                  <span className="text-white text-sm font-bold">✓</span>
+                )}
               </button>
               <div 
                 className="flex-1 cursor-pointer"
                 onClick={() => startFocusTimer(task.id)}
               >
-                <span className="text-gray-800 font-light">
+                <span className={`font-light ${completingTaskId === task.id ? 'text-green-600' : 'text-gray-800'}`}>
                   {task.text}
                 </span>
                 {focusTimer.taskId === task.id && isTimerRunning && (
-                  <div className="text-xs text-gray-500 mt-1 bg-blue-50 px-2 py-1 rounded-full inline-block">
+                  <div className="text-xs text-gray-500 mt-1 bg-blue-50 px-2 py-1 rounded-full inline-block animate-pulse">
                     {formatTime(focusTimer.elapsed)} • Click to stop
                   </div>
                 )}
@@ -500,11 +477,11 @@ export default function SignalApp() {
                   </span>
                 )}
                 {focusTimer.taskId === task.id && isTimerRunning && (
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
                 )}
                 <button
                   onClick={() => deleteSignalTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-all w-6 h-6 flex items-center justify-center"
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all w-6 h-6 flex items-center justify-center hover:scale-110"
                 >
                   ×
                 </button>
@@ -517,10 +494,18 @@ export default function SignalApp() {
         {completedSignalTasks.length > 0 && (
           <div className="space-y-2 mb-8 pt-4 border-t border-gray-100">
             {completedSignalTasks.map((task) => (
-              <div key={task.id} className="group flex items-center gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+              <div 
+                key={task.id} 
+                className={`group flex items-center gap-4 p-3 rounded-xl transition-all duration-500 ${
+                  completingTaskId === task.id 
+                    ? 'transform -translate-x-8 opacity-30 scale-95 bg-gray-50' 
+                    : 'hover:bg-gray-50'
+                }`}
+              >
                 <button
                   onClick={() => toggleSignalTask(task.id)}
-                  className="w-6 h-6 bg-black rounded-md flex items-center justify-center"
+                  disabled={completingTaskId === task.id}
+                  className="w-6 h-6 bg-black rounded-md flex items-center justify-center hover:bg-gray-700 transition-all hover:scale-105"
                 >
                   <span className="text-white text-sm">✓</span>
                 </button>
@@ -529,7 +514,7 @@ export default function SignalApp() {
                 </span>
                 <button
                   onClick={() => deleteSignalTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 transition-all w-6 h-6 flex items-center justify-center"
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all w-6 h-6 flex items-center justify-center hover:scale-110"
                 >
                   ×
                 </button>
@@ -564,10 +549,21 @@ export default function SignalApp() {
           {showNoise && (
             <div className="mt-3 space-y-1">
               {noiseTasks.map((task, index) => (
-                <div key={index} className="text-sm text-gray-400 p-2 bg-gray-50 rounded-lg">
-                  {task}
+                <div key={index} className="group flex items-center justify-between text-sm text-gray-400 p-2 bg-gray-50 rounded-lg hover:bg-gray-200 hover:shadow-sm transition-all duration-200 hover:scale-102">
+                  <span className="flex-1 group-hover:text-gray-600 transition-colors">{task}</span>
+                  <button
+                    onClick={() => deleteNoiseTask(index)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all w-5 h-5 flex items-center justify-center ml-2 hover:scale-125"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
+              {noiseTasks.length === 0 && (
+                <div className="text-center py-4 text-xs text-gray-400 animate-pulse">
+                  No noise captured yet
+                </div>
+              )}
             </div>
           )}
         </div>
