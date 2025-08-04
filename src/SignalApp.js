@@ -306,13 +306,13 @@ export default function SignalApp() {
               <button
                 onClick={() => signInWithEmail(email)}
                 disabled={!email.includes('@')}
-                className="w-full bg-black text-white py-3 rounded-xl font-medium active:bg-gray-800 md:hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed touch-manipulation"
+                className="w-full bg-black text-white py-3 rounded-xl font-medium hover:bg-gray-800 active:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed touch-manipulation"
               >
                 Save Email
               </button>
               <button
                 onClick={skipSync}
-                className="w-full mt-2 text-gray-500 py-2 text-sm active:text-gray-700 md:hover:text-gray-700 transition-colors touch-manipulation"
+                className="w-full mt-2 text-gray-500 py-2 text-sm hover:text-gray-700 active:text-gray-700 transition-colors touch-manipulation"
               >
                 Continue without sync
               </button>
@@ -332,7 +332,7 @@ export default function SignalApp() {
               </p>
               <button
                 onClick={completeDailyReset}
-                className="w-full bg-black text-white py-3 rounded-xl font-medium active:bg-gray-800 md:hover:bg-gray-800 transition-colors touch-manipulation"
+                className="w-full bg-black text-white py-3 rounded-xl font-medium hover:bg-gray-800 active:bg-gray-800 transition-colors touch-manipulation"
               >
                 Set Today's Focus
               </button>
@@ -358,7 +358,7 @@ export default function SignalApp() {
                   setEmail('');
                   setShowEmailInput(true);
                 }}
-                className="text-xs text-gray-500 hover:text-gray-700 underline"
+                className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
               >
                 Change
               </button>
@@ -387,7 +387,7 @@ export default function SignalApp() {
             className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 touch-manipulation ${
               isLongPressing 
                 ? 'bg-gray-700 text-white scale-110' 
-                : 'bg-black text-white active:bg-gray-800 md:hover:bg-gray-800 active:scale-105 md:hover:scale-105'
+                : 'bg-black text-white hover:bg-gray-800 active:bg-gray-800 hover:scale-105 active:scale-105'
             }`}
           >
             <span className="text-xl font-light">+</span>
@@ -417,13 +417,13 @@ export default function SignalApp() {
             <div className="flex gap-2 mt-2">
               <button
                 onClick={addQuickNoise}
-                className="bg-gray-700 text-white px-3 py-1 text-xs rounded-md active:bg-gray-800 md:hover:bg-gray-800 transition-colors touch-manipulation"
+                className="bg-gray-700 text-white px-3 py-1 text-xs rounded-md hover:bg-gray-800 active:bg-gray-800 transition-colors touch-manipulation"
               >
                 Add to Noise
               </button>
               <button
                 onClick={() => {setShowQuickNoise(false); setQuickNoiseInput('');}}
-                className="bg-gray-300 text-gray-600 px-3 py-1 text-xs rounded-md active:bg-gray-400 md:hover:bg-gray-400 transition-colors touch-manipulation"
+                className="bg-gray-300 text-gray-600 px-3 py-1 text-xs rounded-md hover:bg-gray-400 active:bg-gray-400 transition-colors touch-manipulation"
               >
                 Cancel
               </button>
@@ -441,7 +441,7 @@ export default function SignalApp() {
                   ? 'transform translate-x-8 opacity-30 scale-95 bg-green-50' 
                   : newTaskId === task.id
                   ? 'transform scale-105 bg-blue-50 shadow-lg'
-                  : 'active:bg-gray-50 md:hover:bg-gray-50 active:shadow-md md:hover:shadow-md'
+                  : 'hover:bg-gray-50 active:bg-gray-50 hover:shadow-md active:shadow-md'
               }`}
             >
               <button
@@ -450,7 +450,7 @@ export default function SignalApp() {
                 className={`w-8 h-8 border-2 rounded-md flex items-center justify-center transition-all duration-300 touch-manipulation ${
                   completingTaskId === task.id
                     ? 'border-green-500 bg-green-500 scale-110'
-                    : 'border-gray-300 active:border-gray-400 active:scale-105 md:hover:border-gray-400 md:hover:scale-105'
+                    : 'border-gray-300 hover:border-gray-400 hover:scale-105 active:border-gray-400 active:scale-105'
                 }`}
               >
                 {completingTaskId === task.id && (
@@ -481,7 +481,7 @@ export default function SignalApp() {
                 )}
                 <button
                   onClick={() => deleteSignalTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 active:text-red-500 md:hover:text-red-500 transition-all w-8 h-8 flex items-center justify-center active:scale-110 md:hover:scale-110 touch-manipulation"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 hover:text-red-500 active:text-red-500 transition-all w-8 h-8 flex items-center justify-center hover:scale-110 active:scale-110 touch-manipulation"
                 >
                   ×
                 </button>
@@ -499,13 +499,13 @@ export default function SignalApp() {
                 className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-500 touch-manipulation ${
                   completingTaskId === task.id 
                     ? 'transform -translate-x-8 opacity-30 scale-95 bg-gray-50' 
-                    : 'active:bg-gray-50 md:hover:bg-gray-50'
+                    : 'hover:bg-gray-50 active:bg-gray-50'
                 }`}
               >
                 <button
                   onClick={() => toggleSignalTask(task.id)}
                   disabled={completingTaskId === task.id}
-                  className="w-8 h-8 bg-black rounded-md flex items-center justify-center active:bg-gray-700 md:hover:bg-gray-700 transition-all active:scale-105 md:hover:scale-105 touch-manipulation"
+                  className="w-8 h-8 bg-black rounded-md flex items-center justify-center hover:bg-gray-700 active:bg-gray-700 transition-all hover:scale-105 active:scale-105 touch-manipulation"
                 >
                   <span className="text-white text-sm">✓</span>
                 </button>
@@ -514,7 +514,7 @@ export default function SignalApp() {
                 </span>
                 <button
                   onClick={() => deleteSignalTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 active:text-red-500 md:hover:text-red-500 transition-all w-8 h-8 flex items-center justify-center active:scale-110 md:hover:scale-110 touch-manipulation"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 hover:text-red-500 active:text-red-500 transition-all w-8 h-8 flex items-center justify-center hover:scale-110 active:scale-110 touch-manipulation"
                 >
                   ×
                 </button>
@@ -536,7 +536,7 @@ export default function SignalApp() {
         <div className="border-t border-gray-100 pt-6">
           <button
             onClick={() => setShowNoise(!showNoise)}
-            className="w-full flex items-center justify-between p-3 active:bg-gray-50 md:hover:bg-gray-50 rounded-xl transition-colors touch-manipulation"
+            className="w-full flex items-center justify-between p-3 hover:bg-gray-50 active:bg-gray-50 rounded-xl transition-colors touch-manipulation"
           >
             <span className="text-sm font-medium text-gray-500">
               Noise • {noiseTasks.length} items
@@ -549,11 +549,11 @@ export default function SignalApp() {
           {showNoise && (
             <div className="mt-3 space-y-1">
               {noiseTasks.map((task, index) => (
-                <div key={index} className="group flex items-center justify-between text-sm text-gray-400 p-3 bg-gray-50 rounded-lg active:bg-gray-200 md:hover:bg-gray-200 active:shadow-sm md:hover:shadow-sm transition-all duration-200 touch-manipulation">
+                <div key={index} className="group flex items-center justify-between text-sm text-gray-400 p-3 bg-gray-50 rounded-lg hover:bg-gray-200 active:bg-gray-200 hover:shadow-sm active:shadow-sm transition-all duration-200 touch-manipulation">
                   <span className="flex-1 group-hover:text-gray-600 group-focus-within:text-gray-600 transition-colors">{task}</span>
                   <button
                     onClick={() => deleteNoiseTask(index)}
-                    className="opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 active:text-red-500 md:hover:text-red-500 transition-all w-6 h-6 flex items-center justify-center ml-2 active:scale-125 md:hover:scale-125 touch-manipulation"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-gray-400 hover:text-red-500 active:text-red-500 transition-all w-6 h-6 flex items-center justify-center ml-2 hover:scale-125 active:scale-125 touch-manipulation"
                   >
                     ×
                   </button>
