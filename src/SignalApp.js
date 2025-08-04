@@ -52,19 +52,19 @@ export default function SignalApp() {
     return () => clearInterval(interval);
   }, [isTimerRunning, focusTimer.taskId]);
 
-  // Supabase auth state listener
+    // Supabase auth state listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Auth state changed:', event, session?.user?.email);
         setDebugInfo(`Auth: ${event} - ${session?.user?.email || 'no user'}`);
-        
+
         if (session?.user) {
           setUser(session.user);
           setEmail(session.user.email);
           setShowEmailInput(false);
           setIsSyncing(true);
-          
+
           // Load data from Supabase
           await loadSupabaseData(session.user.email);
           setIsSyncing(false);
@@ -79,6 +79,22 @@ export default function SignalApp() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Polling for data updates (every 30 seconds)
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Polling for updates...');
+        await loadSupabaseData(user.email);
+      } catch (error) {
+        console.error('❌ Polling error:', error);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [user?.email]);
 
   const initializeApp = async () => {
     try {
@@ -368,6 +384,27 @@ export default function SignalApp() {
     }
   };
 
+  // Force sync data
+  const forceSync = async () => {
+    if (!user?.email) return;
+    
+    try {
+      console.log('🔄 Force syncing...');
+      setDebugInfo('Force syncing...');
+      setIsSyncing(true);
+      
+      await loadSupabaseData(user.email);
+      
+      console.log('✅ Force sync complete');
+      setDebugInfo('Force sync complete');
+    } catch (error) {
+      console.error('❌ Force sync error:', error);
+      setDebugInfo(`Force sync error: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Reset everything and start fresh
   const resetApp = async () => {
     try {
@@ -435,43 +472,32 @@ export default function SignalApp() {
           setTimeout(() => reject(new Error('Timeout: Supabase request took too long')), 10000)
         );
         
-        // Delete existing tasks
-        const deletePromise = supabase
-          .from('signal_tasks')
-          .delete()
-          .eq('user_email', user.email);
-
-        const { error: deleteError } = await Promise.race([deletePromise, timeoutPromise]);
-
-        if (deleteError) {
-          console.error('❌ Error deleting tasks:', deleteError);
-          setDebugInfo(`Delete error: ${deleteError.message}`);
-          // Continue anyway - localStorage is already saved
-          return;
-        }
-
-        // Insert new tasks (don't include id - let Supabase generate it)
-        const tasksToInsert = tasks.map(task => ({
+        // Use upsert instead of delete + insert to avoid conflicts
+        const tasksToUpsert = tasks.map(task => ({
           user_email: user.email,
           text: task.text,
           completed: task.completed,
-          time_spent: task.timeSpent
+          time_spent: task.timeSpent,
+          updated_at: new Date().toISOString()
         }));
 
-        console.log('📤 Inserting tasks:', tasksToInsert);
+        console.log('📤 Upserting tasks:', tasksToUpsert);
 
-        const insertPromise = supabase
+        const upsertPromise = supabase
           .from('signal_tasks')
-          .insert(tasksToInsert)
+          .upsert(tasksToUpsert, { 
+            onConflict: 'user_email,text',
+            ignoreDuplicates: false 
+          })
           .select();
 
-        const { data: insertData, error: insertError } = await Promise.race([insertPromise, timeoutPromise]);
+        const { data: upsertData, error: upsertError } = await Promise.race([upsertPromise, timeoutPromise]);
 
-        if (insertError) {
-          console.error('❌ Error saving to Supabase:', insertError);
-          setDebugInfo(`Save error: ${insertError.message} - but saved to localStorage`);
+        if (upsertError) {
+          console.error('❌ Error upserting to Supabase:', upsertError);
+          setDebugInfo(`Save error: ${upsertError.message} - but saved to localStorage`);
         } else {
-          console.log('✅ Saved signal tasks to Supabase:', insertData);
+          console.log('✅ Saved signal tasks to Supabase:', upsertData);
           setDebugInfo('Saved to Supabase');
         }
       } catch (error) {
@@ -765,6 +791,12 @@ export default function SignalApp() {
                     className="text-xs text-blue-500 hover:text-blue-700 active:text-blue-700 underline transition-colors touch-manipulation"
                   >
                     Test
+                  </button>
+                  <button
+                    onClick={forceSync}
+                    className="text-xs text-green-500 hover:text-green-700 active:text-green-700 underline transition-colors touch-manipulation"
+                  >
+                    Sync
                   </button>
                   <button
                     onClick={resetApp}
