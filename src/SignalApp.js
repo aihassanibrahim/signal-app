@@ -344,6 +344,30 @@ export default function SignalApp() {
     }
   };
 
+  // Test Supabase connection
+  const testSupabaseConnection = async () => {
+    try {
+      console.log('🧪 Testing Supabase connection...');
+      setDebugInfo('Testing Supabase connection...');
+      
+      const { data, error } = await supabase
+        .from('signal_tasks')
+        .select('count')
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Supabase connection test failed:', error);
+        setDebugInfo(`Connection test failed: ${error.message}`);
+      } else {
+        console.log('✅ Supabase connection test successful');
+        setDebugInfo('Supabase connection OK');
+      }
+    } catch (error) {
+      console.error('❌ Supabase connection test error:', error);
+      setDebugInfo(`Connection test error: ${error.message}`);
+    }
+  };
+
   const completeDailyReset = () => {
     localStorage.setItem('lastDailyReset', new Date().toDateString());
     setShowDailyReset(false);
@@ -373,11 +397,18 @@ export default function SignalApp() {
         console.log('☁️ Saving to Supabase...');
         setDebugInfo('Saving to Supabase...');
         
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: Supabase request took too long')), 10000)
+        );
+        
         // Delete existing tasks
-        const { error: deleteError } = await supabase
+        const deletePromise = supabase
           .from('signal_tasks')
           .delete()
           .eq('user_email', user.email);
+
+        const { error: deleteError } = await Promise.race([deletePromise, timeoutPromise]);
 
         if (deleteError) {
           console.error('❌ Error deleting tasks:', deleteError);
@@ -394,10 +425,12 @@ export default function SignalApp() {
 
         console.log('📤 Inserting tasks:', tasksToInsert);
 
-        const { data: insertData, error: insertError } = await supabase
+        const insertPromise = supabase
           .from('signal_tasks')
           .insert(tasksToInsert)
           .select();
+
+        const { data: insertData, error: insertError } = await Promise.race([insertPromise, timeoutPromise]);
 
         if (insertError) {
           console.error('❌ Error saving to Supabase:', insertError);
@@ -691,12 +724,20 @@ export default function SignalApp() {
                 {user ? `Synced with ${email}` : `Email saved: ${email}`}
               </div>
               {user ? (
-                <button
-                  onClick={signOut}
-                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
-                >
-                  Sign out
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={testSupabaseConnection}
+                    className="text-xs text-blue-500 hover:text-blue-700 active:text-blue-700 underline transition-colors touch-manipulation"
+                  >
+                    Test
+                  </button>
+                  <button
+                    onClick={signOut}
+                    className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
+                  >
+                    Sign out
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => {
