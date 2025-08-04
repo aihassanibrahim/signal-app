@@ -612,12 +612,7 @@ export default function SignalApp() {
     <div className="min-h-screen bg-gray-50 flex justify-center py-8 px-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8">
         
-        {/* Debug Info (temporary) */}
-        {debugInfo && (
-          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800 font-mono">{debugInfo}</p>
-          </div>
-        )}
+
         
         {/* Email Input Modal */}
         {initialLoadComplete && showEmailInput && (
@@ -675,18 +670,10 @@ export default function SignalApp() {
         )}
         
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <h1 className="text-2xl font-light text-gray-800">Today's Focus</h1>
-            {isSyncing && (
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            )}
-          </div>
-          <div className="text-sm text-gray-500">
-            {signalRatio}% focused • {formatDuration(signalTime)} on signal
-          </div>
+        <div className="relative mb-8">
+          {/* Sync Status - Top Right */}
           {email && (
-            <div className="flex items-center justify-center gap-2 mt-2">
+            <div className="absolute top-0 right-0 flex items-center gap-2">
               <div className="text-xs text-gray-400">
                 {user ? `Synced with ${email}` : `Email saved: ${email}`}
               </div>
@@ -697,7 +684,22 @@ export default function SignalApp() {
                 >
                   Sign out
                 </button>
-              ) : (
+              ) : null}
+            </div>
+          )}
+          
+          {/* Centered Header Content */}
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <h1 className="text-2xl font-light text-gray-800">Today's Focus</h1>
+              {isSyncing && (
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              )}
+            </div>
+            <div className="text-sm text-gray-500">
+              {signalRatio}% focused • {formatDuration(signalTime)} on signal
+            </div>
+          </div>
                 <button
                   onClick={() => {
                     localStorage.removeItem('signalEmail');
