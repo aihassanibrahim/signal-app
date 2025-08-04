@@ -27,6 +27,7 @@ export default function SignalApp() {
   const [newTaskId, setNewTaskId] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [user, setUser] = useState(null);
+  const [debugInfo, setDebugInfo] = useState('');
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
@@ -55,7 +56,8 @@ export default function SignalApp() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
+        console.log('🔐 Auth state changed:', event, session?.user?.email);
+        setDebugInfo(`Auth: ${event} - ${session?.user?.email || 'no user'}`);
         
         if (session?.user) {
           setUser(session.user);
@@ -80,11 +82,20 @@ export default function SignalApp() {
 
   const initializeApp = async () => {
     try {
+      console.log('🚀 Initializing app...');
+      setDebugInfo('Initializing...');
+      
       // Check for existing session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Session error:', sessionError);
+        setDebugInfo(`Session error: ${sessionError.message}`);
+      }
       
       if (session?.user) {
         // User is already signed in
+        console.log('✅ User already signed in:', session.user.email);
         setUser(session.user);
         setEmail(session.user.email);
         setIsSyncing(true);
@@ -94,17 +105,20 @@ export default function SignalApp() {
         // No session, check for saved email
         const savedEmail = localStorage.getItem('signalEmail');
         if (savedEmail) {
+          console.log('📧 Found saved email:', savedEmail);
           setEmail(savedEmail);
           // Try to sign in with saved email
           await signInWithEmail(savedEmail);
         } else {
           // Load local data and show email modal
+          console.log('📱 No saved email, loading local data');
           loadLocalData();
           checkForModals();
         }
       }
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error('❌ Error initializing app:', error);
+      setDebugInfo(`Init error: ${error.message}`);
       loadLocalData();
       checkForModals();
     }
@@ -112,7 +126,8 @@ export default function SignalApp() {
 
   const loadSupabaseData = async (userEmail) => {
     try {
-      console.log('Loading Supabase data for:', userEmail);
+      console.log('📥 Loading Supabase data for:', userEmail);
+      setDebugInfo(`Loading data for ${userEmail}...`);
       
       // Load signal tasks
       const { data: signalData, error: signalError } = await supabase
@@ -121,7 +136,13 @@ export default function SignalApp() {
         .eq('user_email', userEmail)
         .order('created_at', { ascending: true });
 
-      if (signalError) throw signalError;
+      if (signalError) {
+        console.error('❌ Signal tasks error:', signalError);
+        setDebugInfo(`Signal error: ${signalError.message}`);
+        throw signalError;
+      }
+      
+      console.log('📊 Signal data received:', signalData);
       
       if (signalData && signalData.length > 0) {
         const tasks = signalData.map(task => ({
@@ -131,9 +152,12 @@ export default function SignalApp() {
           timeSpent: task.time_spent || 0
         }));
         setSignalTasks(tasks);
-        console.log('Loaded signal tasks:', tasks.length);
+        console.log('✅ Loaded signal tasks:', tasks.length);
+        setDebugInfo(`Loaded ${tasks.length} signal tasks`);
       } else {
         // No data in Supabase, load from localStorage as fallback
+        console.log('📱 No Supabase signal data, using localStorage');
+        setDebugInfo('No Supabase data, using localStorage');
         loadLocalData();
       }
 
@@ -144,16 +168,24 @@ export default function SignalApp() {
         .eq('user_email', userEmail)
         .order('created_at', { ascending: true });
 
-      if (noiseError) throw noiseError;
+      if (noiseError) {
+        console.error('❌ Noise tasks error:', noiseError);
+        setDebugInfo(`Noise error: ${noiseError.message}`);
+        throw noiseError;
+      }
+      
+      console.log('📊 Noise data received:', noiseData);
       
       if (noiseData && noiseData.length > 0) {
         const noise = noiseData.map(task => task.text);
         setNoiseTasks(noise);
-        console.log('Loaded noise tasks:', noise.length);
+        console.log('✅ Loaded noise tasks:', noise.length);
+        setDebugInfo(`Loaded ${noise.length} noise tasks`);
       }
       
     } catch (error) {
-      console.error('Error loading Supabase data:', error);
+      console.error('❌ Error loading Supabase data:', error);
+      setDebugInfo(`Load error: ${error.message}`);
       // Fallback to localStorage
       loadLocalData();
     }
@@ -161,10 +193,14 @@ export default function SignalApp() {
 
   const loadLocalData = () => {
     try {
+      console.log('📱 Loading local data...');
+      setDebugInfo('Loading local data...');
+      
       // Load signal tasks
       const savedSignalTasks = localStorage.getItem('signalTasks');
       if (savedSignalTasks) {
         setSignalTasks(JSON.parse(savedSignalTasks));
+        console.log('✅ Loaded local signal tasks');
       } else {
         // Default tasks only if no saved data
         const defaultTasks = [
@@ -174,12 +210,14 @@ export default function SignalApp() {
         ];
         setSignalTasks(defaultTasks);
         localStorage.setItem('signalTasks', JSON.stringify(defaultTasks));
+        console.log('✅ Set default signal tasks');
       }
 
       // Load noise tasks
       const savedNoiseTasks = localStorage.getItem('noiseTasks');
       if (savedNoiseTasks) {
         setNoiseTasks(JSON.parse(savedNoiseTasks));
+        console.log('✅ Loaded local noise tasks');
       } else {
         // Default noise only if no saved data
         const defaultNoise = [
@@ -187,9 +225,13 @@ export default function SignalApp() {
         ];
         setNoiseTasks(defaultNoise);
         localStorage.setItem('noiseTasks', JSON.stringify(defaultNoise));
+        console.log('✅ Set default noise tasks');
       }
+      
+      setDebugInfo('Local data loaded');
     } catch (error) {
-      console.error('Error loading local data:', error);
+      console.error('❌ Error loading local data:', error);
+      setDebugInfo(`Local error: ${error.message}`);
     }
   };
 
@@ -222,7 +264,8 @@ export default function SignalApp() {
 
     try {
       setIsSyncing(true);
-      console.log('Signing in with email:', emailAddress);
+      console.log('🔐 Signing in with email:', emailAddress);
+      setDebugInfo(`Signing in: ${emailAddress}...`);
 
       // Try to sign in with existing account
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -231,15 +274,18 @@ export default function SignalApp() {
       });
 
       if (signInError) {
+        console.log('⚠️ Sign in failed, creating account:', signInError.message);
+        setDebugInfo(`Sign in failed: ${signInError.message}`);
+        
         // User doesn't exist, create new account
-        console.log('Creating new account for:', emailAddress);
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: emailAddress,
           password: 'signal123'
         });
 
         if (signUpError) {
-          console.error('Error creating account:', signUpError);
+          console.error('❌ Error creating account:', signUpError);
+          setDebugInfo(`Sign up error: ${signUpError.message}`);
           // Fallback to localStorage only
           localStorage.setItem('signalEmail', emailAddress);
           setEmail(emailAddress);
@@ -249,9 +295,11 @@ export default function SignalApp() {
           return;
         }
 
-        console.log('Account created successfully');
+        console.log('✅ Account created successfully');
+        setDebugInfo('Account created successfully');
       } else {
-        console.log('Signed in successfully');
+        console.log('✅ Signed in successfully');
+        setDebugInfo('Signed in successfully');
       }
 
       // Save email to localStorage as backup
@@ -261,7 +309,8 @@ export default function SignalApp() {
       localStorage.removeItem('skippedSync');
 
     } catch (error) {
-      console.error('Error during sign in:', error);
+      console.error('❌ Error during sign in:', error);
+      setDebugInfo(`Sign in error: ${error.message}`);
       // Fallback to localStorage only
       localStorage.setItem('signalEmail', emailAddress);
       setEmail(emailAddress);
@@ -275,18 +324,23 @@ export default function SignalApp() {
   const skipSync = () => {
     localStorage.setItem('skippedSync', 'true');
     setShowEmailInput(false);
+    setDebugInfo('Sync skipped');
   };
 
   const signOut = async () => {
     try {
+      console.log('🚪 Signing out...');
+      setDebugInfo('Signing out...');
       await supabase.auth.signOut();
       setUser(null);
       setEmail('');
       localStorage.removeItem('signalEmail');
       localStorage.removeItem('skippedSync');
       loadLocalData();
+      setDebugInfo('Signed out');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Error signing out:', error);
+      setDebugInfo(`Sign out error: ${error.message}`);
     }
   };
 
@@ -307,7 +361,7 @@ export default function SignalApp() {
   };
 
   const saveSignalTasks = async (tasks) => {
-    console.log('Saving signal tasks:', tasks.length);
+    console.log('💾 Saving signal tasks:', tasks.length);
     setSignalTasks(tasks);
     
     // Always save to localStorage as backup
@@ -316,11 +370,19 @@ export default function SignalApp() {
     // Save to Supabase if user is signed in
     if (user?.email) {
       try {
+        console.log('☁️ Saving to Supabase...');
+        setDebugInfo('Saving to Supabase...');
+        
         // Delete existing tasks
-        await supabase
+        const { error: deleteError } = await supabase
           .from('signal_tasks')
           .delete()
           .eq('user_email', user.email);
+
+        if (deleteError) {
+          console.error('❌ Error deleting tasks:', deleteError);
+          setDebugInfo(`Delete error: ${deleteError.message}`);
+        }
 
         // Insert new tasks
         const tasksToInsert = tasks.map(task => ({
@@ -330,23 +392,29 @@ export default function SignalApp() {
           time_spent: task.timeSpent
         }));
 
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('signal_tasks')
           .insert(tasksToInsert);
 
-        if (error) {
-          console.error('Error saving to Supabase:', error);
+        if (insertError) {
+          console.error('❌ Error saving to Supabase:', insertError);
+          setDebugInfo(`Save error: ${insertError.message}`);
         } else {
-          console.log('Saved signal tasks to Supabase');
+          console.log('✅ Saved signal tasks to Supabase');
+          setDebugInfo('Saved to Supabase');
         }
       } catch (error) {
-        console.error('Error saving to Supabase:', error);
+        console.error('❌ Error saving to Supabase:', error);
+        setDebugInfo(`Save error: ${error.message}`);
       }
+    } else {
+      console.log('📱 User not signed in, only saved to localStorage');
+      setDebugInfo('Saved to localStorage only');
     }
   };
 
   const saveNoiseTasks = async (tasks) => {
-    console.log('Saving noise tasks:', tasks.length);
+    console.log('💾 Saving noise tasks:', tasks.length);
     setNoiseTasks(tasks);
     
     // Always save to localStorage as backup
@@ -355,11 +423,19 @@ export default function SignalApp() {
     // Save to Supabase if user is signed in
     if (user?.email) {
       try {
+        console.log('☁️ Saving noise to Supabase...');
+        setDebugInfo('Saving noise to Supabase...');
+        
         // Delete existing noise tasks
-        await supabase
+        const { error: deleteError } = await supabase
           .from('noise_tasks')
           .delete()
           .eq('user_email', user.email);
+
+        if (deleteError) {
+          console.error('❌ Error deleting noise:', deleteError);
+          setDebugInfo(`Noise delete error: ${deleteError.message}`);
+        }
 
         // Insert new noise tasks
         const tasksToInsert = tasks.map(text => ({
@@ -367,18 +443,24 @@ export default function SignalApp() {
           text: text
         }));
 
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('noise_tasks')
           .insert(tasksToInsert);
 
-        if (error) {
-          console.error('Error saving noise to Supabase:', error);
+        if (insertError) {
+          console.error('❌ Error saving noise to Supabase:', insertError);
+          setDebugInfo(`Noise save error: ${insertError.message}`);
         } else {
-          console.log('Saved noise tasks to Supabase');
+          console.log('✅ Saved noise tasks to Supabase');
+          setDebugInfo('Noise saved to Supabase');
         }
       } catch (error) {
-        console.error('Error saving noise to Supabase:', error);
+        console.error('❌ Error saving noise to Supabase:', error);
+        setDebugInfo(`Noise save error: ${error.message}`);
       }
+    } else {
+      console.log('📱 User not signed in, only saved noise to localStorage');
+      setDebugInfo('Noise saved to localStorage only');
     }
   };
 
@@ -426,7 +508,7 @@ export default function SignalApp() {
       timeSpent: 0
     };
 
-    console.log('Adding new signal task:', newTask);
+    console.log('➕ Adding new signal task:', newTask);
     const updatedTasks = [...signalTasks, newTask];
     saveSignalTasks(updatedTasks);
     setSignalInput('');
@@ -523,6 +605,13 @@ export default function SignalApp() {
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center py-8 px-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8">
+        
+        {/* Debug Info (temporary) */}
+        {debugInfo && (
+          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-xs text-yellow-800 font-mono">{debugInfo}</p>
+          </div>
+        )}
         
         {/* Email Input Modal */}
         {initialLoadComplete && showEmailInput && (
