@@ -1,4 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase configuration
+const SUPABASE_URL = 'https://umkvdwcolybhvhmxcmpp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3Zkd2NvbHliaHZobXhjbXBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyOTk5MzUsImV4cCI6MjA2OTg3NTkzNX0.A8bc48ZcDSFZLS5HHbrGU3ercOkUwsRhQWWOjVuL6sQ';
+
+// Initialize Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function SignalApp() {
   const [signalTasks, setSignalTasks] = useState([]);
@@ -17,6 +25,8 @@ export default function SignalApp() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState(null);
   const [newTaskId, setNewTaskId] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [user, setUser] = useState(null);
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
@@ -24,8 +34,7 @@ export default function SignalApp() {
 
   // Initialize app - load data once
   useEffect(() => {
-    loadData();
-    checkForModals();
+    initializeApp();
   }, []);
 
   // Timer effect
@@ -42,7 +51,115 @@ export default function SignalApp() {
     return () => clearInterval(interval);
   }, [isTimerRunning, focusTimer.taskId]);
 
-  const loadData = () => {
+  // Supabase auth state listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (session?.user) {
+          setUser(session.user);
+          setEmail(session.user.email);
+          setShowEmailInput(false);
+          setIsSyncing(true);
+          
+          // Load data from Supabase
+          await loadSupabaseData(session.user.email);
+          setIsSyncing(false);
+        } else {
+          setUser(null);
+          setEmail('');
+          // Fallback to localStorage
+          loadLocalData();
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const initializeApp = async () => {
+    try {
+      // Check for existing session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // User is already signed in
+        setUser(session.user);
+        setEmail(session.user.email);
+        setIsSyncing(true);
+        await loadSupabaseData(session.user.email);
+        setIsSyncing(false);
+      } else {
+        // No session, check for saved email
+        const savedEmail = localStorage.getItem('signalEmail');
+        if (savedEmail) {
+          setEmail(savedEmail);
+          // Try to sign in with saved email
+          await signInWithEmail(savedEmail);
+        } else {
+          // Load local data and show email modal
+          loadLocalData();
+          checkForModals();
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing app:', error);
+      loadLocalData();
+      checkForModals();
+    }
+  };
+
+  const loadSupabaseData = async (userEmail) => {
+    try {
+      console.log('Loading Supabase data for:', userEmail);
+      
+      // Load signal tasks
+      const { data: signalData, error: signalError } = await supabase
+        .from('signal_tasks')
+        .select('*')
+        .eq('user_email', userEmail)
+        .order('created_at', { ascending: true });
+
+      if (signalError) throw signalError;
+      
+      if (signalData && signalData.length > 0) {
+        const tasks = signalData.map(task => ({
+          id: task.id,
+          text: task.text,
+          completed: task.completed,
+          timeSpent: task.time_spent || 0
+        }));
+        setSignalTasks(tasks);
+        console.log('Loaded signal tasks:', tasks.length);
+      } else {
+        // No data in Supabase, load from localStorage as fallback
+        loadLocalData();
+      }
+
+      // Load noise tasks
+      const { data: noiseData, error: noiseError } = await supabase
+        .from('noise_tasks')
+        .select('*')
+        .eq('user_email', userEmail)
+        .order('created_at', { ascending: true });
+
+      if (noiseError) throw noiseError;
+      
+      if (noiseData && noiseData.length > 0) {
+        const noise = noiseData.map(task => task.text);
+        setNoiseTasks(noise);
+        console.log('Loaded noise tasks:', noise.length);
+      }
+      
+    } catch (error) {
+      console.error('Error loading Supabase data:', error);
+      // Fallback to localStorage
+      loadLocalData();
+    }
+  };
+
+  const loadLocalData = () => {
     try {
       // Load signal tasks
       const savedSignalTasks = localStorage.getItem('signalTasks');
@@ -72,7 +189,7 @@ export default function SignalApp() {
         localStorage.setItem('noiseTasks', JSON.stringify(defaultNoise));
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading local data:', error);
     }
   };
 
@@ -100,19 +217,77 @@ export default function SignalApp() {
     setInitialLoadComplete(true);
   };
 
-  const signInWithEmail = (emailAddress) => {
-    if (emailAddress && emailAddress.includes('@')) {
+  const signInWithEmail = async (emailAddress) => {
+    if (!emailAddress || !emailAddress.includes('@')) return;
+
+    try {
+      setIsSyncing(true);
+      console.log('Signing in with email:', emailAddress);
+
+      // Try to sign in with existing account
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: emailAddress,
+        password: 'signal123' // Simple password for demo
+      });
+
+      if (signInError) {
+        // User doesn't exist, create new account
+        console.log('Creating new account for:', emailAddress);
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: emailAddress,
+          password: 'signal123'
+        });
+
+        if (signUpError) {
+          console.error('Error creating account:', signUpError);
+          // Fallback to localStorage only
+          localStorage.setItem('signalEmail', emailAddress);
+          setEmail(emailAddress);
+          setShowEmailInput(false);
+          localStorage.removeItem('skippedSync');
+          setIsSyncing(false);
+          return;
+        }
+
+        console.log('Account created successfully');
+      } else {
+        console.log('Signed in successfully');
+      }
+
+      // Save email to localStorage as backup
       localStorage.setItem('signalEmail', emailAddress);
       setEmail(emailAddress);
       setShowEmailInput(false);
-      // Remove skip flag if they decide to add email later
       localStorage.removeItem('skippedSync');
+
+    } catch (error) {
+      console.error('Error during sign in:', error);
+      // Fallback to localStorage only
+      localStorage.setItem('signalEmail', emailAddress);
+      setEmail(emailAddress);
+      setShowEmailInput(false);
+      localStorage.removeItem('skippedSync');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
   const skipSync = () => {
     localStorage.setItem('skippedSync', 'true');
     setShowEmailInput(false);
+  };
+
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setEmail('');
+      localStorage.removeItem('signalEmail');
+      localStorage.removeItem('skippedSync');
+      loadLocalData();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const completeDailyReset = () => {
@@ -131,16 +306,80 @@ export default function SignalApp() {
     }
   };
 
-  const saveSignalTasks = (tasks) => {
+  const saveSignalTasks = async (tasks) => {
     console.log('Saving signal tasks:', tasks.length);
     setSignalTasks(tasks);
+    
+    // Always save to localStorage as backup
     localStorage.setItem('signalTasks', JSON.stringify(tasks));
+    
+    // Save to Supabase if user is signed in
+    if (user?.email) {
+      try {
+        // Delete existing tasks
+        await supabase
+          .from('signal_tasks')
+          .delete()
+          .eq('user_email', user.email);
+
+        // Insert new tasks
+        const tasksToInsert = tasks.map(task => ({
+          user_email: user.email,
+          text: task.text,
+          completed: task.completed,
+          time_spent: task.timeSpent
+        }));
+
+        const { error } = await supabase
+          .from('signal_tasks')
+          .insert(tasksToInsert);
+
+        if (error) {
+          console.error('Error saving to Supabase:', error);
+        } else {
+          console.log('Saved signal tasks to Supabase');
+        }
+      } catch (error) {
+        console.error('Error saving to Supabase:', error);
+      }
+    }
   };
 
-  const saveNoiseTasks = (tasks) => {
+  const saveNoiseTasks = async (tasks) => {
     console.log('Saving noise tasks:', tasks.length);
     setNoiseTasks(tasks);
+    
+    // Always save to localStorage as backup
     localStorage.setItem('noiseTasks', JSON.stringify(tasks));
+    
+    // Save to Supabase if user is signed in
+    if (user?.email) {
+      try {
+        // Delete existing noise tasks
+        await supabase
+          .from('noise_tasks')
+          .delete()
+          .eq('user_email', user.email);
+
+        // Insert new noise tasks
+        const tasksToInsert = tasks.map(text => ({
+          user_email: user.email,
+          text: text
+        }));
+
+        const { error } = await supabase
+          .from('noise_tasks')
+          .insert(tasksToInsert);
+
+        if (error) {
+          console.error('Error saving noise to Supabase:', error);
+        } else {
+          console.log('Saved noise tasks to Supabase');
+        }
+      } catch (error) {
+        console.error('Error saving noise to Supabase:', error);
+      }
+    }
   };
 
   const handleAddClick = () => {
@@ -293,7 +532,7 @@ export default function SignalApp() {
                 Sync across devices
               </h2>
               <p className="text-sm text-gray-500 mb-6 text-center">
-                Enter your email to enable sync (coming soon)
+                Enter your email to enable cross-device sync
               </p>
               <input
                 type="email"
@@ -305,10 +544,10 @@ export default function SignalApp() {
               />
               <button
                 onClick={() => signInWithEmail(email)}
-                disabled={!email.includes('@')}
+                disabled={!email.includes('@') || isSyncing}
                 className="w-full bg-black text-white py-3 rounded-xl font-medium hover:bg-gray-800 active:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed touch-manipulation"
               >
-                Save Email
+                {isSyncing ? 'Signing in...' : 'Enable Sync'}
               </button>
               <button
                 onClick={skipSync}
@@ -342,26 +581,40 @@ export default function SignalApp() {
         
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-light text-gray-800 mb-2">Today's Focus</h1>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <h1 className="text-2xl font-light text-gray-800">Today's Focus</h1>
+            {isSyncing && (
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            )}
+          </div>
           <div className="text-sm text-gray-500">
             {signalRatio}% focused • {formatDuration(signalTime)} on signal
           </div>
           {email && (
             <div className="flex items-center justify-center gap-2 mt-2">
               <div className="text-xs text-gray-400">
-                Email saved: {email}
+                {user ? `Synced with ${email}` : `Email saved: ${email}`}
               </div>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('signalEmail');
-                  localStorage.removeItem('skippedSync');
-                  setEmail('');
-                  setShowEmailInput(true);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
-              >
-                Change
-              </button>
+              {user ? (
+                <button
+                  onClick={signOut}
+                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
+                >
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('signalEmail');
+                    localStorage.removeItem('skippedSync');
+                    setEmail('');
+                    setShowEmailInput(true);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-700 underline transition-colors touch-manipulation"
+                >
+                  Change
+                </button>
+              )}
             </div>
           )}
         </div>
