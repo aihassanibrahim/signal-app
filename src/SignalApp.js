@@ -146,7 +146,7 @@ export default function SignalApp() {
       
       if (signalData && signalData.length > 0) {
         const tasks = signalData.map(task => ({
-          id: task.id,
+          id: task.id, // Use Supabase-generated ID
           text: task.text,
           completed: task.completed,
           timeSpent: task.time_spent || 0
@@ -384,7 +384,7 @@ export default function SignalApp() {
           setDebugInfo(`Delete error: ${deleteError.message}`);
         }
 
-        // Insert new tasks
+        // Insert new tasks (don't include id - let Supabase generate it)
         const tasksToInsert = tasks.map(task => ({
           user_email: user.email,
           text: task.text,
@@ -392,15 +392,18 @@ export default function SignalApp() {
           time_spent: task.timeSpent
         }));
 
-        const { error: insertError } = await supabase
+        console.log('📤 Inserting tasks:', tasksToInsert);
+
+        const { data: insertData, error: insertError } = await supabase
           .from('signal_tasks')
-          .insert(tasksToInsert);
+          .insert(tasksToInsert)
+          .select();
 
         if (insertError) {
           console.error('❌ Error saving to Supabase:', insertError);
           setDebugInfo(`Save error: ${insertError.message}`);
         } else {
-          console.log('✅ Saved signal tasks to Supabase');
+          console.log('✅ Saved signal tasks to Supabase:', insertData);
           setDebugInfo('Saved to Supabase');
         }
       } catch (error) {
@@ -437,21 +440,24 @@ export default function SignalApp() {
           setDebugInfo(`Noise delete error: ${deleteError.message}`);
         }
 
-        // Insert new noise tasks
+        // Insert new noise tasks (don't include id - let Supabase generate it)
         const tasksToInsert = tasks.map(text => ({
           user_email: user.email,
           text: text
         }));
 
-        const { error: insertError } = await supabase
+        console.log('📤 Inserting noise tasks:', tasksToInsert);
+
+        const { data: insertData, error: insertError } = await supabase
           .from('noise_tasks')
-          .insert(tasksToInsert);
+          .insert(tasksToInsert)
+          .select();
 
         if (insertError) {
           console.error('❌ Error saving noise to Supabase:', insertError);
           setDebugInfo(`Noise save error: ${insertError.message}`);
         } else {
-          console.log('✅ Saved noise tasks to Supabase');
+          console.log('✅ Saved noise tasks to Supabase:', insertData);
           setDebugInfo('Noise saved to Supabase');
         }
       } catch (error) {
