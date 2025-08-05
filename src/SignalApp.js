@@ -48,6 +48,8 @@ export default function SignalApp() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState(null);
   const [newTaskId, setNewTaskId] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
@@ -114,6 +116,31 @@ export default function SignalApp() {
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, focusTimer.taskId]);
+
+  // PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to the install prompt: ${outcome}`);
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
+  };
 
   const generateRoomCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -789,6 +816,32 @@ export default function SignalApp() {
             <p className="text-gray-400 font-light">
               What deserves your signal today?
             </p>
+          </div>
+        )}
+
+        {/* PWA Install Prompt */}
+        {showInstallPrompt && (
+          <div className="fixed bottom-4 left-4 right-4 bg-black text-white p-4 rounded-xl shadow-lg z-50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Installera Signal App</p>
+                <p className="text-sm text-gray-300">För bästa upplevelse</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowInstallPrompt(false)}
+                  className="px-3 py-1 text-sm text-gray-300 hover:text-white"
+                >
+                  Inte nu
+                </button>
+                <button
+                  onClick={handleInstallClick}
+                  className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium"
+                >
+                  Installera
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

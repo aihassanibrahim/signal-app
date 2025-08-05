@@ -1,0 +1,74 @@
+{
+  "name": "Signal App - Focus & Productivity",
+  "short_name": "Signal",
+  "description": "Focus on what matters. Cross-device productivity app.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "sv-SE",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-desktop.png", 
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512", 
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Ny Signal Task",
+      "short_name": "Ny Task",
+      "description": "Lägg till ny signal task",
+      "url": "/?action=new-task",
+      "icons": [
+        {
+          "src": "/shortcut-new-task.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Fånga Noise",
+      "short_name": "Noise",
+      "description": "Snabbt fånga distraktioner",
+      "url": "/?action=capture-noise",
+      "icons": [
+        {
+          "src": "/shortcut-noise.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+} 
