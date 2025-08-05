@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
-  collection, 
   doc, 
   setDoc, 
   getDoc, 
@@ -120,7 +119,7 @@ export default function SignalApp() {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  const checkRoomCode = () => {
+  const checkRoomCode = useCallback(() => {
     const savedRoomCode = localStorage.getItem('signalRoomCode');
     if (savedRoomCode) {
       setRoomCode(savedRoomCode);
@@ -130,7 +129,7 @@ export default function SignalApp() {
       setShowRoomSetup(true);
       setInitialLoadComplete(true);
     }
-  };
+  }, []);
 
   const createNewRoom = async () => {
     const newRoomCode = generateRoomCode();
@@ -166,7 +165,7 @@ export default function SignalApp() {
     }
   };
 
-  const initializeRoomData = async (code = roomCode) => {
+  const initializeRoomData = useCallback(async (code = roomCode) => {
     if (!user || !code) return;
     
     try {
@@ -192,7 +191,7 @@ export default function SignalApp() {
     } catch (error) {
       console.error('Fel vid initialisering av rumsdata:', error);
     }
-  };
+  }, [user, roomCode]);
 
   const updateRoomData = async (updates) => {
     if (!user || !roomCode) return;
