@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
+import { Analytics } from '@vercel/analytics/react';
 import { 
   getFirestore, 
   doc, 
@@ -845,6 +846,7 @@ export default function SignalApp() {
           </div>
         )}
       </div>
+      <Analytics />
     </div>
   );
 } 
