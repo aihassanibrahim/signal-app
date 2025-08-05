@@ -52,6 +52,7 @@ export default function SignalApp() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState(null);
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
@@ -151,9 +152,13 @@ export default function SignalApp() {
     e.dataTransfer.setData('text/html', e.target.outerHTML);
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e, taskId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    
+    if (draggedTaskId && draggedTaskId !== taskId) {
+      setDragOverTaskId(taskId);
+    }
   };
 
   const handleDrop = async (e, targetTaskId) => {
@@ -172,10 +177,12 @@ export default function SignalApp() {
     
     await saveSignalTasks(newTasks);
     setDraggedTaskId(null);
+    setDragOverTaskId(null);
   };
 
   const handleDragEnd = () => {
     setDraggedTaskId(null);
+    setDragOverTaskId(null);
   };
 
   // Touch support for mobile drag and drop
@@ -202,6 +209,47 @@ export default function SignalApp() {
   const handleTouchEnd = () => {
     setTouchStartY(null);
     setTouchStartTaskId(null);
+  };
+
+  // Calculate drag effects for visual feedback
+  const getDragEffects = (taskId) => {
+    if (!draggedTaskId || !dragOverTaskId) return {};
+    
+    const draggedIndex = signalTasks.findIndex(task => task.id === draggedTaskId);
+    const currentIndex = signalTasks.findIndex(task => task.id === taskId);
+    const targetIndex = signalTasks.findIndex(task => task.id === dragOverTaskId);
+    
+    if (draggedIndex === -1 || currentIndex === -1 || targetIndex === -1) return {};
+    
+    // If this is the dragged task, hide it
+    if (taskId === draggedTaskId) {
+      return { opacity: 0.3, transform: 'scale(0.95)' };
+    }
+    
+    // If we're dragging over this task, show drop zone
+    if (taskId === dragOverTaskId) {
+      return { 
+        transform: 'translateY(4px) scale(1.02)', 
+        backgroundColor: 'rgb(243 244 246)', // bg-gray-100
+        border: '2px dashed rgb(156 163 175)', // border-dashed border-gray-400
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' // shadow-lg
+      };
+    }
+    
+    // Move other tasks to make space
+    if (draggedIndex < targetIndex) {
+      // Dragging down: move tasks up
+      if (currentIndex > draggedIndex && currentIndex <= targetIndex) {
+        return { transform: 'translateY(-8px)' };
+      }
+    } else {
+      // Dragging up: move tasks down
+      if (currentIndex < draggedIndex && currentIndex >= targetIndex) {
+        return { transform: 'translateY(8px)' };
+      }
+    }
+    
+    return {};
   };
 
   const generateRoomCode = () => {
@@ -741,13 +789,14 @@ export default function SignalApp() {
               key={task.id} 
               draggable
               onDragStart={(e) => handleDragStart(e, task.id)}
-              onDragOver={handleDragOver}
+              onDragOver={(e) => handleDragOver(e, task.id)}
               onDrop={(e) => handleDrop(e, task.id)}
               onDragEnd={handleDragEnd}
               onTouchStart={(e) => handleTouchStart(e, task.id)}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-500 touch-manipulation cursor-move ${
+              style={getDragEffects(task.id)}
+              className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-300 touch-manipulation cursor-move ${
                 completingTaskId === task.id 
                   ? 'transform translate-x-8 opacity-30 scale-95 bg-green-50' 
                   : newTaskId === task.id
