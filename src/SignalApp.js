@@ -51,6 +51,7 @@ export default function SignalApp() {
   const [newTaskId, setNewTaskId] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
   
   const signalTime = signalTasks.reduce((total, task) => total + task.timeSpent, 0);
   const totalTime = 25200; // 7 hours in seconds
@@ -141,6 +142,66 @@ export default function SignalApp() {
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
     }
+  };
+
+  // Drag and Drop functions
+  const handleDragStart = (e, taskId) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e, targetTaskId) => {
+    e.preventDefault();
+    
+    if (draggedTaskId === targetTaskId) return;
+    
+    const draggedIndex = signalTasks.findIndex(task => task.id === draggedTaskId);
+    const targetIndex = signalTasks.findIndex(task => task.id === targetTaskId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) return;
+    
+    const newTasks = [...signalTasks];
+    const [draggedTask] = newTasks.splice(draggedIndex, 1);
+    newTasks.splice(targetIndex, 0, draggedTask);
+    
+    await saveSignalTasks(newTasks);
+    setDraggedTaskId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+  };
+
+  // Touch support for mobile drag and drop
+  const [touchStartY, setTouchStartY] = useState(null);
+  const [touchStartTaskId, setTouchStartTaskId] = useState(null);
+
+  const handleTouchStart = (e, taskId) => {
+    setTouchStartY(e.touches[0].clientY);
+    setTouchStartTaskId(taskId);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartY || !touchStartTaskId) return;
+    
+    const touchY = e.touches[0].clientY;
+    const diff = touchY - touchStartY;
+    
+    if (Math.abs(diff) > 50) {
+      // Start drag mode
+      setDraggedTaskId(touchStartTaskId);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStartY(null);
+    setTouchStartTaskId(null);
   };
 
   const generateRoomCode = () => {
@@ -635,6 +696,13 @@ export default function SignalApp() {
               ? 'Click + to add signal • Long press + for noise' 
               : 'Long press + to capture noise'}
           </span>
+          {activeSignalTasks.length > 1 && (
+            <div className="mt-2">
+              <span className="text-xs text-gray-400">
+                Drag tasks to reorder • Hover to see drag handle
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quick Noise Input */}
@@ -671,27 +739,44 @@ export default function SignalApp() {
           {activeSignalTasks.map((task) => (
             <div 
               key={task.id} 
-              className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-500 touch-manipulation ${
+              draggable
+              onDragStart={(e) => handleDragStart(e, task.id)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, task.id)}
+              onDragEnd={handleDragEnd}
+              onTouchStart={(e) => handleTouchStart(e, task.id)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-500 touch-manipulation cursor-move ${
                 completingTaskId === task.id 
                   ? 'transform translate-x-8 opacity-30 scale-95 bg-green-50' 
                   : newTaskId === task.id
                   ? 'transform scale-105 bg-blue-50 shadow-lg'
+                  : draggedTaskId === task.id
+                  ? 'opacity-50 scale-95 bg-gray-100'
                   : 'hover:bg-gray-50 active:bg-gray-50 hover:shadow-md active:shadow-md'
               }`}
             >
-              <button
-                onClick={() => toggleSignalTask(task.id)}
-                disabled={completingTaskId === task.id}
-                className={`w-8 h-8 border-2 rounded-md flex items-center justify-center transition-all duration-300 touch-manipulation ${
-                  completingTaskId === task.id
-                    ? 'border-green-500 bg-green-500 scale-110'
-                    : 'border-gray-300 active:border-gray-400 active:scale-105'
-                }`}
-              >
-                {completingTaskId === task.id && (
-                  <span className="text-white text-sm font-bold">✓</span>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleSignalTask(task.id)}
+                  disabled={completingTaskId === task.id}
+                  className={`w-8 h-8 border-2 rounded-md flex items-center justify-center transition-all duration-300 touch-manipulation ${
+                    completingTaskId === task.id
+                      ? 'border-green-500 bg-green-500 scale-110'
+                      : 'border-gray-300 active:border-gray-400 active:scale-105'
+                  }`}
+                >
+                  {completingTaskId === task.id && (
+                    <span className="text-white text-sm font-bold">✓</span>
+                  )}
+                </button>
+                <div className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM20 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM20 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM20 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                  </svg>
+                </div>
+              </div>
               <div 
                 className="flex-1 cursor-pointer"
                 onClick={() => startFocusTimer(task.id)}
